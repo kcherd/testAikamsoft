@@ -1,0 +1,21 @@
+create role admin with superuser createdb createrole login password '1234';
+create database shop with owner admin;
+
+shop=# create table customer (
+shop(# id serial primary key,
+shop(# name varchar(20),
+shop(# surname varchar(40));
+
+shop=# create table purchases (
+shop(# id serial primary key,
+shop(# id_c integer references customer (id),
+shop(# id_g integer references goods (id),
+shop(# p_date date);
+
+shop=# create or replace function stat(start_d date, end_d date) returns table(name text, prod text) as $$
+shop$# select customer.name, goods.name from customer join purchases on customer.id = purchases.id_c join goods on goods.id = purchases.id_g where p_date > start_d and p_date < end_d;
+shop$# $$ language sql;
+
+shop=# create or replace function stat(start_d date, end_d date) returns table(name text, surname text, prod text, price numeric) as $$
+shop$# select customer.surname, customer.name, goods.name, goods.price from customer join purchases on customer.id = purchases.id_c join goods on goods.id = purchases.id_g where p_date > start_d and p_date < end_d order by customer.surname, goods.price desc;
+shop$# $$ language sql;
