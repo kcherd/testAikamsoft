@@ -11,7 +11,7 @@ public class Project {
     public static final String USER = "admin";
     public static final String PASS = "1234";
 
-    public static void main(String[] args) throws ParseException, com.google.gson.JsonSyntaxException, FileNotFoundException, SQLException {
+    public static void main(String[] args) throws ParseException, com.google.gson.JsonSyntaxException, SQLException {
         String type;
         String inputFineName;
         String outputFileName;
