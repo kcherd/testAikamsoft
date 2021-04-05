@@ -21,49 +21,39 @@ public class Stat {
     private Connection connection;
     private OutputStat outputStat;
 
-    public Stat(String inputFileName, String outputFileName) throws SQLException {
+    public Stat(String inputFileName, String outputFileName) throws Exception {
         this.inputFileName = inputFileName;
         this.outputFileName = outputFileName;
 
-        collectingStatistics();
-    }
-
-    private void collectingStatistics() throws SQLException {
         parseJsonToObject();
         dbConnection();
         getDataFromDB();
         writeToFile();
+        closeConn();
     }
 
-    private void parseJsonToObject() {
+    private void parseJsonToObject() throws Exception {
         GsonBuilder builder = new GsonBuilder();
         Gson gson = builder.create();
 
         try(FileReader reader = new FileReader(inputFileName)){
             inputStat = gson.fromJson(reader, InputStat.class);//создали из json файла объект класса InputStat
         }catch(IOException ex){
-            ex.printStackTrace();
+            throw new Exception("Ошибка в входном файле: " + ex.getMessage());
         }
     }
 
-    private void dbConnection(){
+    private void dbConnection() throws Exception {
         connection = null;
 
         try {
             connection = DriverManager.getConnection(Project.DB_URL, Project.USER, Project.PASS);
         } catch (SQLException e) {
-            System.out.println("Connection Failed");
-            e.printStackTrace();
-        }
-
-        if (connection != null) {
-            System.out.println("You successfully connected to database now");
-        } else {
-            System.out.println("Failed to make connection to database");
+            throw new Exception("Ошибка приподключении к базе данных: " + e.getMessage());
         }
     }
 
-    private void getDataFromDB() throws SQLException {
+    private void getDataFromDB() throws Exception {
         outputStat = new OutputStat();
         outputStat.setType("stat");
         outputStat.setTotalDays((int)(inputStat.getEndDate().getTime() - inputStat.getStartDate().getTime())/86400000);
@@ -71,62 +61,66 @@ public class Stat {
         SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy");
         String selectSQL = "select * from stat('" + dateFormat.format(inputStat.getStartDate()) + "', '" + dateFormat.format(inputStat.getEndDate()) + "')";
 
-        ResultSet resultSet = connection.createStatement().executeQuery(selectSQL);
+        try {
+            ResultSet resultSet = connection.createStatement().executeQuery(selectSQL);
 
-        float totalCustomer = 0;
-        float totalAll = 0;
+            float totalCustomer = 0;
+            float totalAll = 0;
 
-        OutputStat.Customers customer = new OutputStat.Customers();
-        OutputStat.Customers.Purchases purchase = new OutputStat.Customers.Purchases();
-        List<OutputStat.Customers.Purchases> purchasesList = new ArrayList<>();
-        List<OutputStat.Customers> customersList = new ArrayList<>();
+            OutputStat.Customers customer = new OutputStat.Customers();
+            OutputStat.Customers.Purchases purchase = new OutputStat.Customers.Purchases();
+            List<OutputStat.Customers.Purchases> purchasesList = new ArrayList<>();
+            List<OutputStat.Customers> customersList = new ArrayList<>();
 
-        if(resultSet.next()){
-            customer.setName(resultSet.getString(1) + " " + resultSet.getString(2));
-            purchase.setName(resultSet.getString(3));
-            purchase.setExpenses(Float.parseFloat(resultSet.getString(4)));
-            purchasesList.add(purchase);
-            totalCustomer += purchase.getExpenses();
-            purchase = new OutputStat.Customers.Purchases();
-        }
-
-        while (resultSet.next()) {
-            String userSurname = resultSet.getString(1);
-            String userName = resultSet.getString(2);
-            String surnameName = userSurname + " " + userName;
-
-            if (!surnameName.equals(customer.getName())) {
-                customer.setPurchases(purchasesList);
-                customer.setTotalExpenses(totalCustomer);
-                customersList.add(customer);
-                totalAll += totalCustomer;
-                totalCustomer = 0;
-                purchasesList = new ArrayList<>();
-
-                customer = new OutputStat.Customers();
-                customer.setName(surnameName);
+            if (resultSet.next()) {
+                customer.setName(resultSet.getString(1) + " " + resultSet.getString(2));
+                purchase.setName(resultSet.getString(3));
+                purchase.setExpenses(Float.parseFloat(resultSet.getString(4)));
+                purchasesList.add(purchase);
+                totalCustomer += purchase.getExpenses();
+                purchase = new OutputStat.Customers.Purchases();
             }
-            purchase.setName(resultSet.getString(3));
-            purchase.setExpenses(Float.parseFloat(resultSet.getString(4)));
-            purchasesList.add(purchase);
-            totalCustomer += purchase.getExpenses();
-            purchase = new OutputStat.Customers.Purchases();
+
+            while (resultSet.next()) {
+                String userSurname = resultSet.getString(1);
+                String userName = resultSet.getString(2);
+                String surnameName = userSurname + " " + userName;
+
+                if (!surnameName.equals(customer.getName())) {
+                    customer.setPurchases(purchasesList);
+                    customer.setTotalExpenses(totalCustomer);
+                    customersList.add(customer);
+                    totalAll += totalCustomer;
+                    totalCustomer = 0;
+                    purchasesList = new ArrayList<>();
+
+                    customer = new OutputStat.Customers();
+                    customer.setName(surnameName);
+                }
+                purchase.setName(resultSet.getString(3));
+                purchase.setExpenses(Float.parseFloat(resultSet.getString(4)));
+                purchasesList.add(purchase);
+                totalCustomer += purchase.getExpenses();
+                purchase = new OutputStat.Customers.Purchases();
+            }
+
+            //для последнего покупателя
+            customer.setPurchases(purchasesList);
+            customer.setTotalExpenses(totalCustomer);
+            customersList.add(customer);
+            totalAll += totalCustomer;
+
+            //сортируем и записываем в объект outputStat
+            Collections.sort(customersList, Collections.reverseOrder());
+            outputStat.setCustomers(customersList);
+            outputStat.setTotalExpenses(totalAll);
+            outputStat.setAvgExpenses(totalAll / customersList.size());
+        } catch (SQLException e){
+            throw new Exception("Ошибка запроса к базе данных: " + e.getMessage());
         }
-
-        //для последнего покупателя
-        customer.setPurchases(purchasesList);
-        customer.setTotalExpenses(totalCustomer);
-        customersList.add(customer);
-        totalAll += totalCustomer;
-
-        //сортируем и записываем в объект outputStat
-        Collections.sort(customersList,  Collections.reverseOrder());
-        outputStat.setCustomers(customersList);
-        outputStat.setTotalExpenses(totalAll);
-        outputStat.setAvgExpenses(totalAll/customersList.size());
     }
 
-    private void writeToFile(){
+    private void writeToFile() throws Exception {
         GsonBuilder builder = new GsonBuilder();
         Gson gson = builder.create();
 
@@ -135,7 +129,15 @@ public class Stat {
 
             writer.flush();
         }catch(IOException ex){
-            ex.printStackTrace();
+            throw new Exception("Ошибка при записи данных в выходной файл: " + ex.getMessage());
+        }
+    }
+
+    private void closeConn() throws Exception {
+        try {
+            connection.close();
+        }catch (SQLException e){
+            throw new Exception("Ошибка при закрытии базы данных: " + e.getMessage());
         }
     }
 }

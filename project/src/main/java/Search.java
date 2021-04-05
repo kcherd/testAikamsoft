@@ -1,6 +1,7 @@
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.jayway.jsonpath.JsonPath;
+import com.jayway.jsonpath.PathNotFoundException;
 
 import java.io.FileReader;
 import java.io.FileWriter;
@@ -23,7 +24,7 @@ public class Search {
     private final OutputSearch outputSearch = new OutputSearch();
     List<OutputSearch.Result> results = new ArrayList<>();
 
-    public Search(String inputFileName, String outputFileName) throws SQLException {
+    public Search(String inputFileName, String outputFileName) throws Exception {
         this.inputFileName = inputFileName;
         this.outputFileName = outputFileName;
 
@@ -33,16 +34,21 @@ public class Search {
         dbConnection();
         search();
         writeToFile();
+        closeConn();
     }
 
-    private void parseJson(){
+    private void parseJson() throws Exception {
         try(FileReader reader = new FileReader(inputFileName)){
-            int c;
             StringBuilder stringBuilder = new StringBuilder();
-            while((c=reader.read())!=-1){
-                stringBuilder.append((char)c);
+            int c = reader.read();
+            if (c == -1) {
+                throw new IOException("Входной файл пуст");
             }
-            System.out.println(stringBuilder.toString());
+            while(c!=-1){
+                stringBuilder.append((char)c);
+                c=reader.read();
+            }
+
             int criteriaCount = JsonPath.read(stringBuilder.toString(), "$.criterias.length()");
 
             for(int i = 0; i < criteriaCount; i++){
@@ -55,29 +61,22 @@ public class Search {
                     case ("badCustomers") -> criteriaList.add(new OutputSearch.BadCustomers((Integer) criteriaMap.get("badCustomers")));
                 }
             }
-        }catch(IOException ex){
-            ex.printStackTrace();
+        }catch(IOException | PathNotFoundException ex){
+            throw new Exception("Ошибка в входном файле: " + ex.getMessage());
         }
     }
 
-    private void dbConnection(){
+    private void dbConnection() throws Exception {
         connection = null;
 
         try {
             connection = DriverManager.getConnection(Project.DB_URL, Project.USER, Project.PASS);
         } catch (SQLException e) {
-            System.out.println("Connection Failed");
-            e.printStackTrace();
-        }
-
-        if (connection != null) {
-            System.out.println("You successfully connected to database now");
-        } else {
-            System.out.println("Failed to make connection to database");
+            throw new Exception("Ошибка при подключении к базе данных: " + e.getMessage());
         }
     }
 
-    private void search() throws SQLException {
+    private void search() throws Exception {
         for (OutputSearch.Criteria criteria : criteriaList) {
             if (criteria instanceof OutputSearch.LastName) {
                 lastNameSearch((OutputSearch.LastName) criteria);
@@ -93,19 +92,19 @@ public class Search {
         outputSearch.setResults(results);
     }
 
-    private void lastNameSearch(OutputSearch.LastName lastName) throws SQLException {
+    private void lastNameSearch(OutputSearch.LastName lastName) throws Exception {
         String selectSQL = "select surname, name from customer where surname = '" + lastName.getLastName() + "'";
         getData(selectSQL, lastName);
     }
 
-    private void productSearch(OutputSearch.Product product) throws SQLException {
+    private void productSearch(OutputSearch.Product product) throws Exception {
         String selectSQL = "select customer.surname, customer.name from customer join purchases on customer.id = purchases.id_c " +
                 "join goods on goods.id = purchases.id_g where goods.name = '" + product.getProductName() + "' " +
                 "group by customer.name, customer.surname having count(customer.name) > " + (product.getMinTimes() - 1);
         getData(selectSQL, product);
     }
 
-    private void purchaseValueSearch(OutputSearch.PurchaseValue purchaseValue) throws SQLException {
+    private void purchaseValueSearch(OutputSearch.PurchaseValue purchaseValue) throws Exception {
         String selectSQL = "select customer.surname, customer.name from customer join purchases on " +
                 "customer.id = purchases.id_c join goods on goods.id = purchases.id_g " +
                 "group by customer.surname, customer.name having sum(goods.price) >"
@@ -113,34 +112,38 @@ public class Search {
         getData(selectSQL, purchaseValue);
     }
 
-    private void badCustomersSearch(OutputSearch.BadCustomers badCustomers) throws SQLException {
+    private void badCustomersSearch(OutputSearch.BadCustomers badCustomers) throws Exception {
         String selectSQL = "select customer.surname, customer.name, count(customer.name) from customer " +
                 "join purchases on customer.id = purchases.id_c join goods on goods.id = purchases.id_g " +
                 "group by customer.surname, customer.name order by count(customer.name) limit " + badCustomers.getBadCustomers();
         getData(selectSQL, badCustomers);
     }
 
-    private void getData(String query, OutputSearch.Criteria criteria) throws SQLException {
+    private void getData(String query, OutputSearch.Criteria criteria) throws Exception {
         OutputSearch.Customer customer = new OutputSearch.Customer();
         List<OutputSearch.Customer> listCustomer = new ArrayList<>();
 
-        ResultSet resultSet = connection.createStatement().executeQuery(query);
+        try {
+            ResultSet resultSet = connection.createStatement().executeQuery(query);
 
-        while (resultSet.next()){
-            customer.setLastName(resultSet.getString(1));
-            customer.setFirstName(resultSet.getString(2));
-            listCustomer.add(customer);
-            customer = new OutputSearch.Customer();
+            while (resultSet.next()){
+                customer.setLastName(resultSet.getString(1));
+                customer.setFirstName(resultSet.getString(2));
+                listCustomer.add(customer);
+                customer = new OutputSearch.Customer();
+            }
+
+            //добавляем результаты поиска в общий список результатов
+            OutputSearch.Result lastNameSearchResult = new OutputSearch.Result();
+            lastNameSearchResult.setCriteria(criteria);
+            lastNameSearchResult.setResults(listCustomer);
+            results.add(lastNameSearchResult);
+        } catch (SQLException e){
+            throw new Exception("Ошибка запроса к базе данных: " + e.getMessage());
         }
-
-        //добавляем результаты поиска в общий список результатов
-        OutputSearch.Result lastNameSearchResult = new OutputSearch.Result();
-        lastNameSearchResult.setCriteria(criteria);
-        lastNameSearchResult.setResults(listCustomer);
-        results.add(lastNameSearchResult);
     }
 
-    private void writeToFile(){
+    private void writeToFile() throws Exception {
         GsonBuilder builder = new GsonBuilder();
         Gson gson = builder.create();
 
@@ -149,7 +152,15 @@ public class Search {
 
             writer.flush();
         }catch(IOException ex){
-            ex.printStackTrace();
+            throw new Exception("Ошибка при записи данных в выходной файл: " + ex.getMessage());
+        }
+    }
+
+    private void closeConn() throws Exception {
+        try {
+            connection.close();
+        }catch (SQLException e){
+            throw new Exception("Ошибка при закрытии базы данных: " + e.getMessage());
         }
     }
 }
