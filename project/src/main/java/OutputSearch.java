@@ -4,6 +4,22 @@ public class OutputSearch {
     private String type;
     private List<Result> results;
 
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
+    }
+
+    public List<Result> getResults() {
+        return results;
+    }
+
+    public void setResults(List<Result> results) {
+        this.results = results;
+    }
+
     public static class Result{
         private Criteria criteria;
         private List<Customer> results;

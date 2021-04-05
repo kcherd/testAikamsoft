@@ -31,3 +31,11 @@ shop=# create or replace function stat(start_d date, end_d date) returns table(n
 select customer.surname, customer.name, goods.name, sum(goods.price) from customer join purchases on customer.id = purchases.id_c
 join goods on goods.id = purchases.id_g where p_date > start_d and p_date < end_d group by customer.surname, customer.name, goods.name order by customer.surname, sum desc;
 shop$# $$ language sql;
+
+
+select customer.surname, customer.name, count(customer.name) from customer join purchases on customer.id = purchases.id_c join goods on goods.id = purchases.id_g where goods.name = 'bread' group by customer.name, customer.surname having count(customer.name) > 2;
+
+
+select customer.surname, customer.name from customer join purchases on customer.id = purchases.id_c join goods on goods.id = purchases.id_g group by customer.surname, customer.name having sum(goods.price) > 500 and sum(goods.price) < 600;
+
+select customer.surname, customer.name, count(customer.name) from customer join purchases on customer.id = purchases.id_c join goods on goods.id = purchases.id_g group by customer.surname, customer.name order by count(customer.name) limit 2;

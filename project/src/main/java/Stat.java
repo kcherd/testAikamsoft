@@ -14,8 +14,8 @@ import java.util.Collections;
 import java.util.List;
 
 public class Stat {
-    private String inputFileName;
-    private String outputFileName;
+    private final String inputFileName;
+    private final String outputFileName;
 
     private InputStat inputStat;
     private Connection connection;
