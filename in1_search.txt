@@ -1,0 +1,9 @@
+{
+	"criterias": [ 
+	    {"lastName": "Semenova"},
+	    {"lastName": "Petrov"},
+	    {"productName": "bread", "minTimes": 2},
+	    {"minExpenses": 500, "maxExpenses": 600},
+	    {"badCustomers": 2}
+      ]
+}

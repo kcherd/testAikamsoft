@@ -5,7 +5,6 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.text.SimpleDateFormat;
@@ -38,19 +37,16 @@ public class Stat {
 
         try(FileReader reader = new FileReader(inputFileName)){
             inputStat = gson.fromJson(reader, InputStat.class);//создали из json файла объект класса InputStat
+            if(inputStat.getStartDate() == null || inputStat.getEndDate() == null){
+                throw new Exception("Данные входного файла не соответствуют формату");
+            }
         }catch(IOException ex){
             throw new Exception("Ошибка в входном файле: " + ex.getMessage());
         }
     }
 
     private void dbConnection() throws Exception {
-        connection = null;
-
-        try {
-            connection = DriverManager.getConnection(Project.DB_URL, Project.USER, Project.PASS);
-        } catch (SQLException e) {
-            throw new Exception("Ошибка приподключении к базе данных: " + e.getMessage());
-        }
+        connection = DBConnection.connect();
     }
 
     private void getDataFromDB() throws Exception {
@@ -134,10 +130,6 @@ public class Stat {
     }
 
     private void closeConn() throws Exception {
-        try {
-            connection.close();
-        }catch (SQLException e){
-            throw new Exception("Ошибка при закрытии базы данных: " + e.getMessage());
-        }
+        DBConnection.closeDB(connection);
     }
 }

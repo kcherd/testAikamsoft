@@ -1,8 +1,9 @@
 {
 	"criterias": [ 
+	    {"badCustomers": 5}
 	    {"lastName": "Semenova"},
-		          {"productName": "bread", "minTimes": 2},
+	    {"productName": "bread", "minTimes": 2},
 	    {"minExpenses": 500, "maxExpenses": 600},
-	          {"badCustomers": 2}
+	    {"badCustomers": 2}
       ]
 }

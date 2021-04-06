@@ -7,7 +7,6 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -67,13 +66,7 @@ public class Search {
     }
 
     private void dbConnection() throws Exception {
-        connection = null;
-
-        try {
-            connection = DriverManager.getConnection(Project.DB_URL, Project.USER, Project.PASS);
-        } catch (SQLException e) {
-            throw new Exception("Ошибка при подключении к базе данных: " + e.getMessage());
-        }
+        connection = DBConnection.connect();
     }
 
     private void search() throws Exception {
@@ -157,10 +150,6 @@ public class Search {
     }
 
     private void closeConn() throws Exception {
-        try {
-            connection.close();
-        }catch (SQLException e){
-            throw new Exception("Ошибка при закрытии базы данных: " + e.getMessage());
-        }
+        DBConnection.closeDB(connection);
     }
 }
